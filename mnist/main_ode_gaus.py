@@ -25,6 +25,7 @@ if args.isRandom == False:
     np.random.seed(seed=0)
     torch.manual_seed(0)
 
+
 def add_noise_tensor_random(x):
     isAdd = random.choice([True, False])
     noise_level = random.choice([50, 75, 100])
@@ -33,47 +34,56 @@ def add_noise_tensor_random(x):
     else:
         return x
 
+
 def get_mnist_loaders(isTrain=False, batch_size=128, test_batch_size=1000):
     if isTrain:
         # train
         transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Lambda(lambda x: add_noise_tensor_random(x))
-                ])
+            transforms.ToTensor(),
+            transforms.Lambda(lambda x: add_noise_tensor_random(x))
+        ])
         train_loader = DataLoader(
-            datasets.MNIST(root='../../data/mnist', train=True, download=True, transform=transform), 
+            datasets.MNIST(root='./data/mnist', train=True,
+                           download=True, transform=transform),
             batch_size=batch_size, shuffle=True, num_workers=6, drop_last=True)
         train_eval_loader = DataLoader(
-            datasets.MNIST(root='../../data/mnist', train=True, download=True, transform=transform),
+            datasets.MNIST(root='./data/mnist', train=True,
+                           download=True, transform=transform),
             batch_size=test_batch_size, shuffle=False, num_workers=2, drop_last=True)
         test_loader = DataLoader(
-            datasets.MNIST(root='../../data/mnist', train=False, download=True, transform=transform),
+            datasets.MNIST(root='./data/mnist', train=False,
+                           download=True, transform=transform),
             batch_size=test_batch_size, shuffle=False, num_workers=2, drop_last=True)
 
         return train_loader, test_loader, train_eval_loader
     else:
         transform = transforms.Compose([
             transforms.ToTensor()
-            ])
+        ])
         transform_noisy = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Lambda(lambda x: add_noise_tensor(x, ['G', args.noise_level]))
-            ])
+            transforms.Lambda(lambda x: add_noise_tensor(
+                x, ['G', args.noise_level]))
+        ])
         test_loader = DataLoader(
-            datasets.MNIST(root='../../data/mnist', train=False, download=True, transform=transform),
+            datasets.MNIST(root='../../data/mnist', train=False,
+                           download=True, transform=transform),
             batch_size=test_batch_size, shuffle=False, num_workers=2, drop_last=True
         )
         test_loader_noisy = DataLoader(
-            datasets.MNIST(root='../../data/mnist', train=False, download=True, transform=transform_noisy),
+            datasets.MNIST(root='../../data/mnist', train=False,
+                           download=True, transform=transform_noisy),
             batch_size=test_batch_size, shuffle=False, num_workers=2, drop_last=True
         )
-    return test_loader, test_loader_noisy         
+    return test_loader, test_loader_noisy
+
 
 def one_hot(x, K):
     return np.array(x[:, None] == np.arange(K)[None, :], dtype=int)
 
+
 def accuracy(model, dataset_loader):
-    
+
     total_correct = 0
     for x, y in dataset_loader:
         x = x.cuda()
@@ -91,26 +101,48 @@ def accuracy_withRef(model, RefDL, PertbDL):
     pred_class_pertb = np.array([])
     for x, y in RefDL:
         x = x.cuda(args.device_ids[0])
-        pred_class_ref = np.concatenate((pred_class_ref, np.argmax(model(x).cpu().detach().numpy(), axis=1)), axis=None)
+        pred_class_ref = np.concatenate((pred_class_ref, np.argmax(
+            model(x).cpu().detach().numpy(), axis=1)), axis=None)
         # pred_class_ref.append(np.argmax(model(x).cpu().detach().numpy(), axis=1))
 
     for x, y in PertbDL:
         x = x.cuda(args.device_ids[0])
         y = one_hot(np.array(y.numpy()), 10)
-        target_class = np.concatenate((target_class, np.argmax(y, axis=1)), axis=None)
-        pred_class_pertb = np.concatenate((pred_class_pertb, np.argmax(model(x).cpu().detach().numpy(), axis=1)), axis=None)
+        target_class = np.concatenate(
+            (target_class, np.argmax(y, axis=1)), axis=None)
+        pred_class_pertb = np.concatenate((pred_class_pertb, np.argmax(
+            model(x).cpu().detach().numpy(), axis=1)), axis=None)
 
-    accu_ref =  np.sum(pred_class_ref == target_class) / len(target_class)
-    accu_pertb_target = np.sum(pred_class_pertb == target_class)/len(target_class)
-    accu_pertb_ref = np.sum((pred_class_ref == target_class) & (pred_class_pertb == target_class)) / np.sum(pred_class_ref == target_class)
+    accu_ref = np.sum(pred_class_ref == target_class) / len(target_class)
+    accu_pertb_target = np.sum(
+        pred_class_pertb == target_class)/len(target_class)
+    accu_pertb_ref = np.sum((pred_class_ref == target_class) & (
+        pred_class_pertb == target_class)) / np.sum(pred_class_ref == target_class)
     return accu_ref, accu_pertb_target, accu_pertb_ref
 
 
 if __name__ == '__main__':
+    CUDA_VISIBLE_DEVICES = 1
+    args.device_ids = [1]
+    args.isODE = True
+    args.TimePeriod = [0, 1]
+    args.isTrain = True
+    args.exp_name = 'debug_MNIST_ODE_gaus_1'
+    args.resume = False
+    args.end_epoch = 100
+    args.dir_logging = './'
+    args.lr = 0.001
+    args.weight_decay = 0
+    args.milestones = [30, 80]
+    args.gamma = 0.2
+    args.start_epoch = 1
+    args.end_epoch = 100
+
     if args.isTrain:
         # Add logs
-        save_dir = os.path.join(args.dir_logging, args.exp_name); makedirs(save_dir)
-        logger = get_logger(logpath=os.path.join(save_dir,'train_result.txt'))   
+        save_dir = os.path.join(args.dir_logging, args.exp_name)
+        makedirs(save_dir)
+        logger = get_logger(logpath=os.path.join(save_dir, 'train_result.txt'))
         logger.info(os.path.abspath(__file__))
         for arg in vars(args):
             logger.info('{}: {}'.format(arg, getattr(args, arg)))
@@ -118,7 +150,7 @@ if __name__ == '__main__':
         # Build model
         model = ODENet_MNIST()
         criterion = nn.CrossEntropyLoss()
-        
+
         if torch.cuda.is_available():
             model = model.cuda()
             criterion = criterion.cuda()
@@ -127,13 +159,16 @@ if __name__ == '__main__':
 
         # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=5e-4)
         # scheduler = MultiStepLR(optimizer, milestones=args.milestones, gamma=0.2)
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-        scheduler = MultiStepLR(optimizer, milestones=args.milestones, gamma=args.gamma)
+        optimizer = optim.Adam(
+            model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        scheduler = MultiStepLR(
+            optimizer, milestones=args.milestones, gamma=args.gamma)
 
         if not args.resume:
             logger.info('---- Model ----')
             logger.info(model)
-            logger.info('Number of parameters: {}'.format(count_parameters(model))) 
+            logger.info('Number of parameters: {}'.format(
+                count_parameters(model)))
 
         # Construct datasets
         train_loader, test_loader, train_eval_loader = get_mnist_loaders(
@@ -141,9 +176,9 @@ if __name__ == '__main__':
 
         # Training
         logger.info('---- Training ----')
-        best_epoch = {'epoch':0, 'acc':0}
+        best_epoch = {'epoch': 0, 'acc': 0}
 
-            # Resume model
+        # Resume model
         if args.resume:
             print("=> loading checkpoint '{}'".format(save_dir))
             checkpoint = torch.load(os.path.join(save_dir, 'checkpoint.pth'))
@@ -151,7 +186,8 @@ if __name__ == '__main__':
             best_epoch = checkpoint['best_epoch']
             model.load_state_dict(checkpoint['model'])
             optimizer.load_state_dict(checkpoint['optimizer'])
-            print("=> loaded checkpoint '{}' (epoch {})".format(save_dir, checkpoint['epoch']))
+            print("=> loaded checkpoint '{}' (epoch {})".format(
+                save_dir, checkpoint['epoch']))
 
         for epoch in range(args.start_epoch, args.end_epoch):
             tic = time.time()
@@ -165,7 +201,7 @@ if __name__ == '__main__':
 
             # evaluation
             with torch.no_grad():
-                if epoch%10==9:
+                if epoch % 10 == 9:
                     train_acc = accuracy(model, train_eval_loader)
                 else:
                     train_acc = 0
@@ -181,32 +217,35 @@ if __name__ == '__main__':
                 'model': model.state_dict(),
                 'best_epoch': best_epoch,
                 'optimizer': optimizer.state_dict()
-                }
-            torch.save(checkpoint,os.path.join(save_dir, 'checkpoint.pth'))
+            }
+            torch.save(checkpoint, os.path.join(save_dir, 'checkpoint.pth'))
 
             logger.info(
                 "Epoch {:04d}/{:04d} | Time {:.3f}s | "
                 "Train Acc {:.4f} | Test Acc {:.4f} | Best epoch @ {:04d} with Acc {:.4f} | lr: {:.6f}".format(
-                    epoch, args.end_epoch, time.time()-tic, train_acc, test_acc, best_epoch['epoch'], 
-                    best_epoch['acc'],optimizer.state_dict()['param_groups'][0]['lr'])
-                )
+                    epoch, args.end_epoch, time.time(
+                    )-tic, train_acc, test_acc, best_epoch['epoch'],
+                    best_epoch['acc'], optimizer.state_dict()['param_groups'][0]['lr'])
+            )
     else:
         # Build model
         print('===> Building model ...')
         # Add logs
-        save_dir = os.path.join(args.dir_logging); makedirs(save_dir)
+        save_dir = os.path.join(args.dir_logging)
+        makedirs(save_dir)
         logger = get_logger(logpath=os.path.join(save_dir, args.logging_file))
         logger.info(os.path.abspath(__file__))
         # for arg in vars(args):
         #     logger.info('{}: {}'.format(arg, getattr(args, arg)))
         logger.info('{}: {}'.format('dir_model', getattr(args, 'dir_model')))
-        logger.info('{}: {}'.format('noise_level', getattr(args, 'noise_level')))
+        logger.info('{}: {}'.format('noise_level',
+                    getattr(args, 'noise_level')))
         model = ODENet_MNIST()
         if torch.cuda.is_available():
             model = model.cuda(args.device_ids[0])
         if len(args.device_ids) >= 2:
             model = nn.DataParallel(model, args.device_ids)
-        
+
         model.load_state_dict(torch.load(args.dir_model).state_dict())
 
         # Construct datasets
@@ -215,7 +254,9 @@ if __name__ == '__main__':
         # Testing
         model.eval()
         with torch.no_grad():
-            accu_orgin, accu_pertb, accu_pertb_orgin = accuracy_withRef(model, test_loader, test_loader_noisy)
+            accu_orgin, accu_pertb, accu_pertb_orgin = accuracy_withRef(
+                model, test_loader, test_loader_noisy)
         logger.info(
-            "Test Acc: {}, Pertb Acc: {}, Pert_wrt_orgin: {}".format(accu_orgin, accu_pertb, accu_pertb_orgin)
-            ) 
+            "Test Acc: {}, Pertb Acc: {}, Pert_wrt_orgin: {}".format(
+                accu_orgin, accu_pertb, accu_pertb_orgin)
+        )
