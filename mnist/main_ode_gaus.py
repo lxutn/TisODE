@@ -41,17 +41,20 @@ def add_noise_tensor_random(x):
 def get_mnist_loaders(isTrain=False, batch_size=128, test_batch_size=1000):
     if isTrain:
         # train
+        transform = transforms.Compose([
+            transforms.ToTensor()
+        ])
         train_loader = DataLoader(
             datasets.MNIST(root='./data/mnist', train=True,
-                           download=True),
+                           download=True, transform=transform),
             batch_size=batch_size, shuffle=True, num_workers=6, drop_last=True)
         train_eval_loader = DataLoader(
             datasets.MNIST(root='./data/mnist', train=True,
-                           download=True),
+                           download=True, transform=transform),
             batch_size=test_batch_size, shuffle=False, num_workers=2, drop_last=True)
         test_loader = DataLoader(
             datasets.MNIST(root='./data/mnist', train=False,
-                           download=True),
+                           download=True, transform=transform),
             batch_size=test_batch_size, shuffle=False, num_workers=2, drop_last=True)
 
         return train_loader, test_loader, train_eval_loader
@@ -125,7 +128,7 @@ def accuracy_withRef(model, RefDL, PertbDL):
 
 if __name__ == '__main__':
     CUDA_VISIBLE_DEVICES = 1
-    args.device_ids = [1]
+    args.device_ids = [0]
     args.isODE = True
     args.TimePeriod = [0, 1]
     args.isTrain = True
