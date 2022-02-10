@@ -47,15 +47,15 @@ def get_mnist_loaders(isTrain=False, batch_size=128, test_batch_size=1000):
         train_loader = DataLoader(
             datasets.MNIST(root='./data/mnist', train=True,
                            download=True, transform=transform),
-            batch_size=batch_size, shuffle=True, num_workers=6, drop_last=True)
+            batch_size=batch_size, shuffle=True,  drop_last=True)
         train_eval_loader = DataLoader(
             datasets.MNIST(root='./data/mnist', train=True,
                            download=True, transform=transform),
-            batch_size=test_batch_size, shuffle=False, num_workers=2, drop_last=True)
+            batch_size=test_batch_size, shuffle=False,  drop_last=True)
         test_loader = DataLoader(
             datasets.MNIST(root='./data/mnist', train=False,
                            download=True, transform=transform),
-            batch_size=test_batch_size, shuffle=False, num_workers=2, drop_last=True)
+            batch_size=test_batch_size, shuffle=False, drop_last=True)
 
         return train_loader, test_loader, train_eval_loader
     else:
@@ -134,7 +134,7 @@ if __name__ == '__main__':
     args.isTrain = True
     args.exp_name = 'debug_MNIST_ODE_gaus_1'
     args.resume = False
-    args.end_epoch = 50
+    args.end_epoch = 20
     args.dir_logging = './'
     args.logging_file = 'train_resut.txt'
     args.dir_model = './debug_MNIST_ODE_gaus_1/model_best.pth'
@@ -143,7 +143,7 @@ if __name__ == '__main__':
     args.milestones = [30, 80]
     args.gamma = 0.2
     args.start_epoch = 1
-    global_train_contraction_metric_flag = False
+    global_train_contraction_metric_flag = True
     args.noise_level = 200
 
     if args.isTrain:
@@ -209,7 +209,7 @@ if __name__ == '__main__':
                     data = batch_tr[0]  # with size (128, 1,28,28)
                     alpha = 0.001
                     contraction_inequality = torch.zeros(
-                        (64*13*13, 64*13*13), requires_grad=True)  # odefunc input and output size are 128*64*13*13
+                        (64, 64), requires_grad=True)  # odefunc input and output size is 64
                     contraction_regularizer = []
 
                     # ! what is the size of the node_propagaation, I can also remove the separate call of the node_propagation
@@ -218,19 +218,26 @@ if __name__ == '__main__':
 
                     for i in range(len(data)):
                         for t in range(len(traj_x)):
-                            xti = traj_x[t, i][None, :]
+                            # print(i, t)
+                            xti = traj_x[t, i]
                             func_grad_at_xti = AGF.jacobian(
-                                model.odefunc.net, xti, create_graph=True).reshape(contraction_inequality.size())
+                                model.odefunc.net, xti, create_graph=True)
 
                             contraction_inequality = -alpha * \
-                                torch.eye(64*13*13).cuda() - \
+                                torch.eye(64).cuda() - \
                                 func_grad_at_xti-func_grad_at_xti.T
 
                             contraction_regularizer.append(F.relu(-torch.min(
                                 torch.real(linalg.eigvals(contraction_inequality)))))
 
-                loss.backward()
-                optimizer.step()
+                    total_loss = loss + \
+                        torch.sum(torch.stack(contraction_regularizer))
+                    total_loss.backward()
+                    optimizer.step()
+
+                else:
+                    loss.backward()
+                    optimizer.step()
 
             # evaluation
             with torch.no_grad():
