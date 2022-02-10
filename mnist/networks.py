@@ -1,3 +1,4 @@
+from psutil import TimeoutExpired
 import torchdiffeq._impl.odeint as odeint
 import torch
 import torch.nn as nn
@@ -102,7 +103,7 @@ class ODEBlock(nn.Module):
                      rtol=args.rtol, atol=args.atol,
                      method='euler', options={'step_size': args.step_size})
         # Two time points are stored in [0,1], here the state at time 1 is output.
-        return out[1]
+        return out
 
 
 class ODEfunc(nn.Module):
@@ -123,6 +124,9 @@ class ODEfunc(nn.Module):
         out = self.relu(out)
         return out
 
+    def net(self, x):
+        return self.forward(1, x)
+
 
 class ODENet_MNIST(nn.Module):
     def __init__(self):
@@ -135,15 +139,24 @@ class ODENet_MNIST(nn.Module):
             norm(64),
             nn.ReLU(inplace=True)
         ]
-        self.feature_layers = [ODEBlock(ODEfunc(64), args.TimePeriod)]
-        self.fc_layers = [nn.AdaptiveAvgPool2d((1, 1)),
-                          Flatten(), nn.Linear(64, 10)
-                          ]
-        self.net = nn.Sequential(
-            *self.downsampling_layers, *self.feature_layers, *self.fc_layers)
+
+        # below are my personal defined functions for regularization
+        self.net_downsampling_layer = nn.Sequential(*self.downsampling_layers)
+
+        self.odefunc = ODEfunc(64)
+        self.feature_layers = ODEBlock(self.odefunc, args.TimePeriod)
+
+        self.fc_layers = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)),
+                                       Flatten(), nn.Linear(64, 10)
+                                       )
 
     def forward(self, x):
-        return self.net(x)
+
+        self.net_downsampling_layer_output = self.net_downsampling_layer(x)
+        self.net_feature_layer_output = self.feature_layers(
+            self.net_downsampling_layer_output)
+
+        return self.fc_layers(self.net_feature_layer_output[-1])
 
 
 # -********************************************
