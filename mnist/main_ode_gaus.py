@@ -41,21 +41,17 @@ def add_noise_tensor_random(x):
 def get_mnist_loaders(isTrain=False, batch_size=128, test_batch_size=1000):
     if isTrain:
         # train
-        transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Lambda(lambda x: add_noise_tensor_random(x))
-        ])
         train_loader = DataLoader(
             datasets.MNIST(root='./data/mnist', train=True,
-                           download=True, transform=transform),
+                           download=True),
             batch_size=batch_size, shuffle=True, num_workers=6, drop_last=True)
         train_eval_loader = DataLoader(
             datasets.MNIST(root='./data/mnist', train=True,
-                           download=True, transform=transform),
+                           download=True),
             batch_size=test_batch_size, shuffle=False, num_workers=2, drop_last=True)
         test_loader = DataLoader(
             datasets.MNIST(root='./data/mnist', train=False,
-                           download=True, transform=transform),
+                           download=True),
             batch_size=test_batch_size, shuffle=False, num_workers=2, drop_last=True)
 
         return train_loader, test_loader, train_eval_loader
@@ -69,12 +65,12 @@ def get_mnist_loaders(isTrain=False, batch_size=128, test_batch_size=1000):
                 x, ['G', args.noise_level]))
         ])
         test_loader = DataLoader(
-            datasets.MNIST(root='../../data/mnist', train=False,
+            datasets.MNIST(root='./data/mnist', train=False,
                            download=True, transform=transform),
             batch_size=test_batch_size, shuffle=False, num_workers=2, drop_last=True
         )
         test_loader_noisy = DataLoader(
-            datasets.MNIST(root='../../data/mnist', train=False,
+            datasets.MNIST(root='./data/mnist', train=False,
                            download=True, transform=transform_noisy),
             batch_size=test_batch_size, shuffle=False, num_workers=2, drop_last=True
         )
@@ -117,10 +113,13 @@ def accuracy_withRef(model, RefDL, PertbDL):
             model(x).cpu().detach().numpy(), axis=1)), axis=None)
 
     accu_ref = np.sum(pred_class_ref == target_class) / len(target_class)
+    # accu_ref represents the percentage that is correctly classified (standard test set)
     accu_pertb_target = np.sum(
         pred_class_pertb == target_class)/len(target_class)
+    # accu_pertb_target represents the percentage that is correctly classified (noisy test set)
     accu_pertb_ref = np.sum((pred_class_ref == target_class) & (
         pred_class_pertb == target_class)) / np.sum(pred_class_ref == target_class)
+    # represent the percetage that remains been correctly classified even if there exist noises
     return accu_ref, accu_pertb_target, accu_pertb_ref
 
 
@@ -134,12 +133,15 @@ if __name__ == '__main__':
     args.resume = False
     args.end_epoch = 50
     args.dir_logging = './'
+    args.logging_file = 'train_resut.txt'
+    args.dir_model = './debug_MNIST_ODE_gaus_1/model_best.pth'
     args.lr = 0.001
     args.weight_decay = 0
     args.milestones = [30, 80]
     args.gamma = 0.2
     args.start_epoch = 1
     global_train_contraction_metric_flag = False
+    args.noise_level = 200
 
     if args.isTrain:
         # Add logs
