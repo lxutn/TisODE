@@ -132,15 +132,14 @@ if __name__ == '__main__':
     args.isTrain = True
     args.exp_name = 'debug_MNIST_ODE_gaus_1'
     args.resume = False
-    args.end_epoch = 100
+    args.end_epoch = 50
     args.dir_logging = './'
     args.lr = 0.001
     args.weight_decay = 0
     args.milestones = [30, 80]
     args.gamma = 0.2
     args.start_epoch = 1
-    args.end_epoch = 100
-    global_train_contraction_metric_flag = True
+    global_train_contraction_metric_flag = False
 
     if args.isTrain:
         # Add logs

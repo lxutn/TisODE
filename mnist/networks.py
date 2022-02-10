@@ -109,35 +109,38 @@ class ODEBlock(nn.Module):
 class ODEfunc(nn.Module):
     def __init__(self, dim):
         super(ODEfunc, self).__init__()
-        self.relu = nn.ReLU(inplace=True)
-        self.conv1 = ConcatConv2d(dim, dim, 3, 1, 1)
-        self.norm1 = norm(dim)
-        self.conv2 = ConcatConv2d(dim, dim, 3, 1, 1)
-        self.norm2 = norm(dim)
-
-    def forward(self, t, x):
-        out = self.conv1(t, x)
-        out = self.norm1(out)
-        out = self.relu(out)
-        out = self.conv2(t, out)
-        out = self.norm2(out)
-        out = self.relu(out)
-        return out
+        self.linear1 = nn.Linear(64, 64)
+        self.relu1 = nn.ReLU()
+        self.linear2 = nn.Linear(64, 64)
+        self.relu2 = nn.ReLU()
+        self.linear3 = nn.Linear(64, 64)
+        self.relu3 = nn.ReLU()
 
     def net(self, x):
-        return self.forward(1, x)
+        out = self.linear1(x)
+        out = self.relu1(out)
+        out = self.linear2(out)
+        out = self.relu2(out)
+        out = self.linear3(out)
+        out = self.relu3(out)
+        return out
+
+    def forward(self, t, x):
+        return self.net(x)
 
 
 class ODENet_MNIST(nn.Module):
     def __init__(self):
         super(ODENet_MNIST, self).__init__()
         self.downsampling_layers = [
-            nn.Conv2d(1, 64, 3, 1),
-            norm(64),
+            nn.Conv2d(1, 64, 5, 2),
+            # norm(64),
             nn.ReLU(inplace=True),
-            nn.Conv2d(64, 64, 4, 2, 1),
-            norm(64),
-            nn.ReLU(inplace=True)
+            nn.Conv2d(64, 64, 5, 2),
+            # norm(64),
+            nn.ReLU(inplace=True),
+            nn.AdaptiveAvgPool2d((1, 1)),
+            Flatten()
         ]
 
         # below are my personal defined functions for regularization
@@ -146,9 +149,7 @@ class ODENet_MNIST(nn.Module):
         self.odefunc = ODEfunc(64)
         self.feature_layers = ODEBlock(self.odefunc, args.TimePeriod)
 
-        self.fc_layers = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)),
-                                       Flatten(), nn.Linear(64, 10)
-                                       )
+        self.fc_layers = nn.Linear(64, 10)
 
     def forward(self, x):
 
